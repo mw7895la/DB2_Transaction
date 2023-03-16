@@ -42,6 +42,8 @@ public class InitTxTest {
 
         //PostConstruct가 호출되는 시점은 자기 빈을 초기화 하는 시점으로 아주 빠르게 일어납니다.
         //따라서 트랜잭션 프록시가 아직 적용되지 않은 상태에서 이런 호출이 발생하게 됩니다.
+        //https://www.inflearn.com/questions/560186/%EC%8A%A4%ED%94%84%EB%A7%81-%EB%B9%88%EC%9D%98-%EC%9D%B4%EB%B2%A4%ED%8A%B8-%EB%9D%BC%EC%9D%B4%ED%94%84-%EC%82%AC%EC%9D%B4%ED%81%B4-%EA%B4%80%EB%A0%A8-%EC%A7%88%EB%AC%B8
+        //참고
         @PostConstruct
         @Transactional
         public void initV1(){
