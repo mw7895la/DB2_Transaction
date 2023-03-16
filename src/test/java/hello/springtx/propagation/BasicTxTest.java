@@ -9,6 +9,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.UnexpectedRollbackException;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
@@ -175,6 +176,40 @@ public class BasicTxTest {
         Assertions.assertThatThrownBy(() -> txManager.commit(outer))
                 .isInstanceOf(UnexpectedRollbackException.class);
     }
+
+    //외부 트랜잭션과 , 내부 트랜잭션을 완전히 분리해서 사용하는 방법  ( 내부 트랜잭션에 옵션을 넣어준다 PROPAGATION_REQUIRES_NEW )
+    @Test
+    void inner_rollback_requires_new(){
+        log.info("외부 트랜잭션 시작");
+        TransactionStatus outer = txManager.getTransaction(new DefaultTransactionDefinition());
+        log.info("outer.isNewTransaction() ={}", outer.isNewTransaction());     //true
+
+        log.info("내부 트랜잭션 시작");
+        DefaultTransactionDefinition definition = new DefaultTransactionDefinition();
+        definition.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);      //항상 새로운 트랜잭션 만든다.
+        //기존에 트랜잭션 있으면 참여하는 것. 이게 REQUIRES고    , REQUIRES_NEW는 뭐냐면  기존 트랜잭션은 무시하고 새로운 트랜잭션(신규)트랜잭션을 만드는 것.
+        TransactionStatus inner = txManager.getTransaction(definition);         //인자로 옵션이 설정된 definition을 넣어줌.
+        log.info("inner.isNewTransaction() ={}", inner.isNewTransaction());     //true
+
+        log.info("내부 트랜잭션 롤백");
+        txManager.rollback(inner);      //이러면 inner 로직 부분만 롤백이 된다 밖에 것 손대지 않는다.
+
+        log.info("외부 트랜잭션 커밋");
+        txManager.commit(outer);
+    }
+    /**
+     *  분리하면 각각의 트랜잭션은 서로 다른 커넥션을 사용하는 것을 볼 수 있다.   -외부 커넥션 : conn0  -내부 커넥션 : conn1
+     *  옵션으로 인해 완전히 새로운 물리 트랜잭션으로 동작하는 내부 트랜잭션이 수행하는 동안  외부 트랜잭션의 커넥션인 conn0은 잠시 트랜잭션 매니저 동기화에서 보류되고 conn1이 쓰인다.
+     *  내부 트랜잭션이 완료되면 (커밋이나 롤백) 다시 conn0을 가지고 있는 외부 트랜잭션이 동작한다.
+     *
+     *  내부 트랜잭션 시작 시
+     *  Suspending current transaction, creating new transaction with name [null] 라는 로그를 볼 수 있다.
+     *  외부 트랜잭션을 잠시 미뤄두고 새로운 트랜잭션인 내부 트랜잭션을 수행 하고 있다.
+     *  그리고 내부 트랜잭션의 수행이 다 끝나면
+     *   Resuming suspended transaction after completion of inner transaction 으로 외부 트랜잭션을 이어서 시작한다.
+     *
+     *   ★★★트랜잭션은 순서대로 시작하고,  역순으로 종료해라★★★
+     */
 }
 
 
